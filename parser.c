@@ -1,10 +1,8 @@
-#include <stdlib.h>
-#include "parser.h"
 #include "lexer.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-Token lookahead;
-
-void match(TokenCode expected, FILE *source) {
+void match(TokenCode expected) {
     if (lookahead.code == expected) {
         lookahead = getNextToken(source);
     } else {
@@ -13,96 +11,86 @@ void match(TokenCode expected, FILE *source) {
     }
 }
 
-void parseProgram(FILE *source) {
-    match(TOKEN_PROGRAM, source);
-    match(TOKEN_ID, source);
-    match(TOKEN_SEMICOLON, source);
-    parseDel(source);
-    match(TOKEN_BEGIN, source);
-    parseListe_inst(source);
-    match(TOKEN_END, source);
-    match(TOKEN_DOT, source);
+void parseProgram() {
+    match(TOKEN_PROGRAM);
+    match(TOKEN_ID);
+    match(TOKEN_SEMICOLON);
+    parseDcl();
+    match(TOKEN_BEGIN);
+    parseListe_inst();
+    match(TOKEN_END);
+    match(TOKEN_DOT);
 }
 
-void parseDel(FILE *source) {
-    match(TOKEN_VAR, source);
-    parseListe_id(source);
-    match(TOKEN_COLON, source);
-    match(TOKEN_INT, source);
-    match(TOKEN_SEMICOLON, source);
+void parseDcl() {
+    if (lookahead.code == TOKEN_VAR) {
+        match(TOKEN_VAR);
+        parseListe_id();
+        match(TOKEN_COLON);
+        match(TOKEN_INT);
+        match(TOKEN_SEMICOLON);
+    }
 }
 
-void parseListe_id(FILE *source) {
-    match(TOKEN_ID, source);
+void parseListe_id() {
+    match(TOKEN_ID);
     while (lookahead.code == TOKEN_COMMA) {
-        match(TOKEN_COMMA, source);
-        match(TOKEN_ID, source);
+        match(TOKEN_COMMA);
+        match(TOKEN_ID);
     }
 }
 
-void parseListe_inst(FILE *source) {
-    while (lookahead.code == TOKEN_ID || lookahead.code == TOKEN_IF || 
-           lookahead.code == TOKEN_WRITELN || lookahead.code == TOKEN_READLN) {
-        parseI(source);
+void parseListe_inst() {
+    if (lookahead.code == TOKEN_ID || lookahead.code == TOKEN_Writeln || lookahead.code == TOKEN_Readln || lookahead.code == TOKEN_IF) {
+        parseI();
+        parseListe_inst();
     }
 }
 
-void parseI(FILE *source) {
-    switch (lookahead.code) {
-        case TOKEN_ID:
-            match(TOKEN_ID, source);
-            match(TOKEN_ASSIGN, source);
-            parseExp(source);
-            match(TOKEN_SEMICOLON, source);
-            break;
-        case TOKEN_WRITELN:
-            match(TOKEN_WRITELN, source);
-            match(TOKEN_LPAREN, source);
-            match(TOKEN_ID, source);
-            match(TOKEN_RPAREN, source);
-            match(TOKEN_SEMICOLON, source);
-            break;
-        case TOKEN_READLN:
-            match(TOKEN_READLN, source);
-            match(TOKEN_LPAREN, source);
-            match(TOKEN_ID, source);
-            match(TOKEN_RPAREN, source);
-            match(TOKEN_SEMICOLON, source);
-            break;
-        case TOKEN_IF:
-            match(TOKEN_IF, source);
-            parseC(source);
-            match(TOKEN_THEN, source);
-            parseListe_inst(source);
-            match(TOKEN_ENDIF, source);
-            break;
-        default:
-            printf("Syntax error: unexpected token %s\n", lookahead.lexeme);
-            exit(1);
+void parseI() {
+    if (lookahead.code == TOKEN_ID) {
+        match(TOKEN_ID);
+        match(TOKEN_ASSIGN);
+        parseExp();
+        match(TOKEN_SEMICOLON);
+    } else if (lookahead.code == TOKEN_Writeln) {
+        match(TOKEN_Writeln);
+        match(TOKEN_LPAREN);
+        match(TOKEN_ID);
+        match(TOKEN_RPAREN);
+        match(TOKEN_SEMICOLON);
+    } else if (lookahead.code == TOKEN_Readln) {
+        match(TOKEN_Readln);
+        match(TOKEN_LPAREN);
+        match(TOKEN_ID);
+        match(TOKEN_RPAREN);
+        match(TOKEN_SEMICOLON);
+    } else if (lookahead.code == TOKEN_IF) {
+        match(TOKEN_IF);
+        parseExp();
+        match(TOKEN_THEN);
+        parseListe_inst();
+        match(TOKEN_END);
     }
 }
 
-void parseC(FILE *source) {
-    parseExp(source);
-    match(TOKEN_OPREL, source);
-    parseExp(source);
-}
-
-void parseExp(FILE *source) {
-    if (lookahead.code == TOKEN_ID || lookahead.code == TOKEN_NB) {
-        match(lookahead.code, source);
+void parseExp() {
+    if (lookahead.code == TOKEN_ID) {
+        match(TOKEN_ID);
+    } else if (lookahead.code == TOKEN_NB) {
+        match(TOKEN_NB);
     } else if (lookahead.code == TOKEN_LPAREN) {
-        match(TOKEN_LPAREN, source);
-        parseExp(source);
-        match(TOKEN_RPAREN, source);
+        match(TOKEN_LPAREN);
+        parseExp();
+        match(TOKEN_RPAREN);
     } else {
-        printf("Syntax error: unexpected token %s\n", lookahead.lexeme);
+        printf("Syntax error in expression\n");
         exit(1);
     }
 
-    // Handle optional arithmetic operation
     if (lookahead.code == TOKEN_OPARITH) {
-        match(TOKEN_OPARITH, source);
-        parseExp(source);
+        match(TOKEN_OPARITH);
+        parseExp();
     }
 }
+
