@@ -1,108 +1,125 @@
-#include "lexer.h"
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+
+#define MAX_TOKEN_LEN 64
+
+typedef enum {
+    TOKEN_PROGRAM, TOKEN_VAR, TOKEN_ID, TOKEN_SEMICOLON, TOKEN_COLON, TOKEN_INT,
+    TOKEN_ASSIGN, TOKEN_NB, TOKEN_BEGIN, TOKEN_END, TOKEN_IF, TOKEN_THEN, 
+    TOKEN_Writeln, TOKEN_Readln, TOKEN_OPREL, TOKEN_OPARITH, TOKEN_COMMA, 
+    TOKEN_DOT, TOKEN_EOF, TOKEN_LPAREN, TOKEN_RPAREN, TOKEN_ERROR
+} TokenCode;
+
+typedef struct {
+    TokenCode code;
+    char lexeme[MAX_TOKEN_LEN];
+} Token;
+
+Token lookahead;
+
+FILE *source;
+int currentChar;
+
+void skipWhitespace() {
+    while (isspace(currentChar) || currentChar == '\n') {
+        currentChar = fgetc(source);
+    }
+}
 
 Token getNextToken(FILE *source) {
     Token token;
-    char ch;
-    int i = 0;
+    token.lexeme[0] = '\0'; // Clear lexeme buffer
 
-    // Skip whitespace
-    skipWhitespace(source);
+    skipWhitespace();
 
-    if ((ch = fgetc(source)) == EOF) {
+    if (currentChar == EOF) {
         token.code = TOKEN_EOF;
         return token;
     }
 
-    // Identifiers and keywords
-    if (isalpha(ch)) {
-        token = handleIdentifierOrKeyword(source, ch);
-        return token;
-    }
-
-    // Numbers
-    if (isdigit(ch)) {
-        token = handleNumber(source, ch);
-        return token;
-    }
-
-    // Operators and punctuation
-    token = handleOperatorsAndPunctuation(source, ch, i);
-    return token;
-}
-
-void skipWhitespace(FILE *source) {
-    char ch;
-    while ((ch = fgetc(source)) == ' ' || ch == '\n' || ch == '\t');
-    ungetc(ch, source);
-}
-
-Token handleIdentifierOrKeyword(FILE *source, char ch) {
-    Token token;
-    int i = 0;
-    token.lexeme[i++] = ch;
-
-    // Read full identifier or keyword
-    while (isalnum(ch = fgetc(source))) {
-        token.lexeme[i++] = ch;
-    }
-    token.lexeme[i] = '\0';
-    ungetc(ch, source);
-
-    if (isKeyword(token.lexeme)) {
-        token.code = getKeywordToken(token.lexeme);
+    if (isalpha(currentChar)) { // identifier (id)
+        int i = 0;
+        while (isalnum(currentChar) || currentChar == '_') {
+            token.lexeme[i++] = currentChar;
+            currentChar = fgetc(source);
+        }
+        token.lexeme[i] = '\0';
+        if (strcmp(token.lexeme, "program") == 0) {
+            token.code = TOKEN_PROGRAM;
+        } else if (strcmp(token.lexeme, "var") == 0) {
+            token.code = TOKEN_VAR;
+        } else if (strcmp(token.lexeme, "begin") == 0) {
+            token.code = TOKEN_BEGIN;
+        } else if (strcmp(token.lexeme, "end") == 0) {
+            token.code = TOKEN_END;
+        } else if (strcmp(token.lexeme, "if") == 0) {
+            token.code = TOKEN_IF;
+        } else if (strcmp(token.lexeme, "then") == 0) {
+            token.code = TOKEN_THEN;
+        } else if (strcmp(token.lexeme, "writeln") == 0) {
+            token.code = TOKEN_Writeln;
+        } else if (strcmp(token.lexeme, "readln") == 0) {
+            token.code = TOKEN_Readln;
+        } else {
+            token.code = TOKEN_ID;
+        }
+    } else if (isdigit(currentChar)) { // number (nb)
+        int i = 0;
+        while (isdigit(currentChar)) {
+            token.lexeme[i++] = currentChar;
+            currentChar = fgetc(source);
+        }
+        token.lexeme[i] = '\0';
+        token.code = TOKEN_NB;
+    } else if (currentChar == ':') { // colon
+        token.code = TOKEN_COLON;
+        currentChar = fgetc(source);
+    } else if (currentChar == ';') { // semicolon
+        token.code = TOKEN_SEMICOLON;
+        currentChar = fgetc(source);
+    } else if (currentChar == '=' || currentChar == '<' || currentChar == '>' || currentChar == '!') { // relational operators
+        char op = currentChar;
+        token.lexeme[0] = op;
+        currentChar = fgetc(source);
+        if (op == '<' && currentChar == '>') {
+            token.lexeme[1] = currentChar;
+            token.lexeme[2] = '\0';
+            token.code = TOKEN_OPREL;
+            currentChar = fgetc(source);
+        } else if (op == '=') {
+            token.code = TOKEN_OPREL;
+        } else if (op == '<' || op == '>') {
+            token.code = TOKEN_OPREL;
+        } else if (op == '!') {
+            token.code = TOKEN_OPREL;
+        }
+    } else if (currentChar == '+' || currentChar == '*') { // arithmetic operators
+        token.lexeme[0] = currentChar;
+        token.lexeme[1] = '\0';
+        token.code = TOKEN_OPARITH;
+        currentChar = fgetc(source);
+    } else if (currentChar == '.') { // dot
+        token.code = TOKEN_DOT;
+        currentChar = fgetc(source);
+    } else if (currentChar == ',') { // comma
+        token.code = TOKEN_COMMA;
+        currentChar = fgetc(source);
+    } else if (currentChar == '(') { // left parenthesis
+        token.code = TOKEN_LPAREN;
+        currentChar = fgetc(source);
+    } else if (currentChar == ')') { // right parenthesis
+        token.code = TOKEN_RPAREN;
+        currentChar = fgetc(source);
     } else {
-        token.code = TOKEN_ID;
+        token.code = TOKEN_ERROR;
     }
 
     return token;
 }
 
-int getKeywordToken(char *lexeme) {
-    if (strcmp(lexeme, "program") == 0) return TOKEN_PROGRAM;
-    if (strcmp(lexeme, "var") == 0) return TOKEN_VAR;
-    if (strcmp(lexeme, "int") == 0) return TOKEN_INT;
-    if (strcmp(lexeme, "begin") == 0) return TOKEN_BEGIN;
-    if (strcmp(lexeme, "end") == 0) return TOKEN_END;
-    if (strcmp(lexeme, "writeln") == 0) return TOKEN_WRITELN;
-    if (strcmp(lexeme, "readln") == 0) return TOKEN_READLN;
-    if (strcmp(lexeme, "if") == 0) return TOKEN_IF;
-    if (strcmp(lexeme, "then") == 0) return TOKEN_THEN;
-    if (strcmp(lexeme, "endif") == 0) return TOKEN_ENDIF;
-    return -1; // If not found, return an invalid token
+void initializeLexer(FILE *sourceFile) {
+    source = sourceFile;
+    currentChar = fgetc(source);
 }
 
-Token handleNumber(FILE *source, char ch) {
-    Token token;
-    int i = 0;
-    token.lexeme[i++] = ch;
-
-    while (isdigit(ch = fgetc(source))) {
-        token.lexeme[i++] = ch;
-    }
-    token.lexeme[i] = '\0';
-    ungetc(ch, source);
-
-    token.code = TOKEN_NB;
-    return token;
-}
-
-Token handleOperatorsAndPunctuation(FILE *source, char ch, int i) {
-    Token token;
-    char nextCh;
-
-    switch (ch) {
-        case ';': token.code = TOKEN_SEMICOLON; break;
-        case ':':
-            nextCh = fgetc(source);
-            if (nextCh == '=') {
-                token.code = TOKEN_ASSIGN;
-                token.lexeme[i++] = ch;
-                token.lexeme[i++] = nextCh;
-            } else {
-                ungetc(nextCh, source);
-                token.code = TOKEN_COLON;
-                token.lexeme[i++] = ch;
-            }
-            break;
-        case ',': token.code = TOKEN_COMMA; break;
-        case '.': token.code = TO
